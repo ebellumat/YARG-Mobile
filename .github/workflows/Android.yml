@@ -1,0 +1,68 @@
+name: Merge, Build, and Release Unity APK
+
+on:
+  push:
+    branches:
+      - dev  # Triggers the workflow when pushing to 'dev' branch
+
+jobs:
+  merge-build-release:
+    name: Merge Dev to Main, Build, and Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures all history is available for merging
+
+      - name: Merge Dev into Main
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git checkout main
+          git merge dev --no-ff --allow-unrelated-histories -m "Auto-merge dev into main"
+          git push origin main
+
+      - name: Cache Library Folder
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Android-${{ github.sha }}
+          restore-keys: |
+            Library-Android-
+
+      - name: Setup Unity
+        uses: game-ci/unity-builder@v4
+        with:
+          unityVersion: 2022.3.8f1  # Change this to match the YARG Unity version
+          targetPlatform: Android
+
+      - name: Activate Unity License
+        uses: game-ci/unity-activate@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+
+      - name: Build APK
+        run: |
+          mkdir -p Build/Android
+          unity-editor -batchmode -quit -logFile build.log -projectPath . -executeMethod BuildScript.BuildAndroid
+
+      - name: Upload APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YARG-Android
+          path: Build/Android/*.apk
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          release_name: "YARG Android Release v1.0.${{ github.run_number }}"
+          draft: false
+          prerelease: false
+          files: Build/Android/*.apk
+        env:
+          GITHUB_TOKEN: ${{ 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 }}
+          
