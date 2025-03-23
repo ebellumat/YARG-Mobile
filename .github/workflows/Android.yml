@@ -1,4 +1,4 @@
-name: Merge and Build APK
+name: Android Build and Release
 
 on:
   push:
@@ -7,9 +7,10 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
-  merge-and-build:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,28 +19,60 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Manage Files for Android Compatibility
+        run: |
+          echo "Ensuring files are correctly placed for Android build..."
+          
+          # Example: Move assets to the correct directory
+          if [ -d "assets" ]; then
+            mkdir -p app/src/main/assets
+            mv assets/* app/src/main/assets/ || true
+          fi
+          
+          # Example: Rename or modify config files for Android compatibility
+          if [ -f "config.json" ]; then
+            mv config.json app/src/main/assets/config.json
+          fi
+          
+          # Ensure executable scripts are properly set
+          chmod +x gradlew
+          
+          echo "File management complete."
+
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant execute permission to Gradle
-        run: chmod +x gradlew
-
-      - name: Merge pull request (if applicable)
-        if: github.event_name == 'pull_request'
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git checkout main
-          git merge --no-ff ${{ github.event.pull_request.head.ref }} -m "Auto-merge PR #${{ github.event.pull_request.number }}"
-
       - name: Build APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
 
-      - name: Upload APK
+      - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: YARG-Mobile-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v0.10.6{{ github.run_number }}
+          name: "YARG Mobile Release v0.10.6{{ github.run_number }}"
+          draft: false
+          prerelease: false
+          body: "Automated release of YARG Mobile."
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
