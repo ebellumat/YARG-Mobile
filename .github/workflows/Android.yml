@@ -54,5 +54,5 @@ jobs:
           prerelease: false
           files: Build/Android/*.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ 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 }}
           
